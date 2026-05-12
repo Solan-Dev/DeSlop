@@ -19,7 +19,7 @@ A Chrome Manifest V3 extension that filters noise from the LinkedIn feed (`linke
 1. Open `chrome://extensions`.
 2. Enable **Developer mode**.
 3. Click **Load unpacked**.
-4. Select this repository folder (`/home/runner/work/DeSlop/DeSlop`).
+4. Select the cloned repository folder containing this extension.
 
 ## Configure
 
