@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeSlop Settings</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 24px;
+        max-width: 720px;
+      }
+
+      h1 {
+        margin-bottom: 4px;
+      }
+
+      p {
+        color: #404040;
+      }
+
+      .field {
+        margin: 16px 0;
+      }
+
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      textarea {
+        box-sizing: border-box;
+        min-height: 120px;
+        padding: 8px;
+        width: 100%;
+      }
+
+      .hint {
+        color: #666;
+        font-size: 13px;
+        margin-top: 6px;
+      }
+
+      button {
+        background: #0a66c2;
+        border: 0;
+        border-radius: 6px;
+        color: white;
+        cursor: pointer;
+        font-weight: 600;
+        padding: 10px 16px;
+      }
+
+      #status {
+        color: #0a7d18;
+        margin-left: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>DeSlop</h1>
+    <p>Filter LinkedIn feed noise locally in your browser.</p>
+
+    <div class="field">
+      <label for="keywordBlacklist">Keyword blacklist</label>
+      <textarea id="keywordBlacklist" placeholder="One keyword per line"></textarea>
+      <div class="hint">Any post containing one of these keywords will be filtered.</div>
+    </div>
+
+    <div class="field">
+      <label for="mutedAuthors">Muted authors</label>
+      <textarea id="mutedAuthors" placeholder="One author name per line"></textarea>
+      <div class="hint">Case-insensitive exact match against post author names.</div>
+    </div>
+
+    <div class="field">
+      <label>
+        <input id="collapseInsteadOfHide" type="checkbox" />
+        Collapse posts instead of hiding them
+      </label>
+    </div>
+
+    <button id="save" type="button">Save settings</button>
+    <span id="status" aria-live="polite"></span>
+
+    <script src="options.js"></script>
+  </body>
+</html>
