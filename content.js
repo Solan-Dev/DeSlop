@@ -1,7 +1,8 @@
 const DEFAULT_SETTINGS = {
   keywordBlacklist: [],
   mutedAuthors: [],
-  collapseInsteadOfHide: false
+  collapseInsteadOfHide: false,
+  filterAiSlop: true
 };
 
 const POST_SELECTOR = "div.occludable-update";
@@ -13,6 +14,120 @@ const RECOMMENDED_PATTERNS = [
   /people\s+you\s+may\s+know/i,
   /from\s+your\s+network/i
 ];
+
+// Hard phrase / structural patterns — one match is enough to flag a post.
+const AI_PATTERNS = [
+  // Hook openers
+  /\bhere'?s\s+the\s+thing\b/i,
+  /\blet\s+that\s+sink\s+in\b/i,
+  /\bhot\s+take\s*:/i,
+  /\bunpopular\s+opinion\s*:/i,
+  /\bplot\s+twist\s*:/i,
+
+  // Engagement bait
+  /\bsave\s+this\s+post\b/i,
+  /\bdrop\s+a\s+🔥\s+if\b/i,
+  /\bcomment\s+yes\s+if\b/i,
+  /\btag\s+someone\s+who\b/i,
+  /\brepost\s+if\s+you\s+agree\b/i,
+  /\blike\s+if\s+you\s+agree\b/i,
+  /\bfollow\s+me\s+for\s+more\b/i,
+
+  // False urgency / nobody-talks-about
+  /\bthis\s+is\s+your\s+reminder\b/i,
+  /\bi\s+need\s+to\s+talk\s+about\b/i,
+  /\bwe\s+need\s+to\s+talk\s+about\b/i,
+  /\bnobody\s+talks\s+about\s+this\b/i,
+  /\bthe\s+secret\s+no\s+one\s+tells\s+you\b/i,
+  /\bthis\s+changed\s+everything\b/i,
+
+  // AI meta-tells
+  /\bas\s+an\s+ai\b/i,
+  /\bi\s+cannot\s+stress\s+this\s+enough\b/i,
+  /\bit'?s?\s+worth\s+noting\b/i,
+  /\bit'?s?\s+important\s+to\s+note\b/i,
+  /\bit'?s?\s+crucial\s+to\b/i,
+  /\bneedless\s+to\s+say\b/i,
+  /\bwithout\s+further\s+ado\b/i,
+  /\bthat\s+being\s+said\b/i,
+  /\bwith\s+that\s+said\b/i,
+  /\bin\s+today'?s?\s+world\b/i,
+  /\bat\s+the\s+end\s+of\s+the\s+day\b/i,
+  /\bmoving\s+forward\b/i,
+  /\bin\s+essence\b/i,
+  /\bsimply\s+put\b/i,
+  /\bthe\s+bottom\s+line\s+is\b/i,
+  /\bto\s+put\s+it\s+simply\b/i,
+  /\bin\s+other\s+words\b/i,
+
+  // Filler transitions (only flag when they open a sentence / paragraph)
+  /(?:^|\n)\s*furthermore[,\s]/i,
+  /(?:^|\n)\s*moreover[,\s]/i,
+  /(?:^|\n)\s*nevertheless[,\s]/i,
+  /(?:^|\n)\s*consequently[,\s]/i,
+  /(?:^|\n)\s*subsequently[,\s]/i,
+  /(?:^|\n)\s*in\s+conclusion[,\s]/i,
+  /(?:^|\n)\s*all\s+things\s+considered[,\s]/i,
+
+  // Inflated / buzzword vocabulary
+  /\bdelve\s+into\b/i,
+  /\bdive\s+deep\s+into\b/i,
+  /\bin\s+the\s+realm\s+of\b/i,
+  /\bparadigm\s+shift\b/i,
+  /\bmultifaceted\b/i,
+  /\bgroundbreaking\b/i,
+  /\btransformative\b/i,
+  /\brevolutionary\b/i,
+  /\bsynergy\b/i,
+
+  // Formulaic story openers
+  /\bi\s+recently\s+had\s+a\s+conversation\s+with\b/i,
+  /\ba\s+client\s+asked\s+me\b/i,
+  /\bi\s+was\s+on\s+a\s+call\s+with\b/i,
+  /\bsomeone\s+dm'?e?d?\s+me\b/i,
+  /\bi'?ve\s+been\s+getting\s+a\s+lot\s+of\s+questions\s+about\b/i,
+
+  // Structural / template patterns
+  /\bno\s+\w+[,.]?\s+no\s+\w+[,.]?\s+just\s+\w+/i,
+  /\b(?:not|no)\s+about\s+.{1,60},\s+it'?s?\s+about\b/i,
+  /\d+\s+things?\s+(?:i\s+)?(?:wish|learned|discovered)\b/i,
+  /\d+\s+(?:lessons?|tips?|ways?|steps?|rules?)\s+(?:from|to)\b/i,
+  /\bi\s+used\s+to\s+(?:think|believe).{1,80}but\s+now\b/i,
+  /\bswipe\s+(?:left|right)\s+to\b/i,
+  /\bshare\s+this\s+with\s+(?:someone|anyone)\b/i,
+  /\bcomment\s+(?:below|down|your)\b/i,
+  /\bwhat\s+do\s+you\s+think\?/i,
+
+  // Bullet / list structural tells
+  /(?:→.+\n){2}→/,
+];
+
+// Density signals — individually weak, but ≥ 3 together flag a post.
+const AI_LONG_POST_MIN_LENGTH = 800;
+const AI_DENSITY_SIGNALS = [
+  // More than 3 exclamation-terminated sentences
+  (text) => (text.match(/!\s/g) || []).length > 3,
+  // 4+ standalone emoji-only lines
+  (text) =>
+    (
+      text.match(
+        /^\s*[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}]+\s*$/gimu
+      ) || []
+    ).length >= 4,
+  // Long post (>800 chars) with no hyperlinks or @mentions
+  (text) => text.length > AI_LONG_POST_MIN_LENGTH && !/https?:\/\/|@\w/.test(text),
+  // 3+ rocket / bulb / checkmark / fire / pointing-down emojis
+  (text) => (text.match(/[🚀💡✅🔥👇]/gu) || []).length > 3,
+];
+
+function looksLikeAiSlop(text) {
+  if (AI_PATTERNS.some((pattern) => pattern.test(text))) {
+    return true;
+  }
+
+  const signals = AI_DENSITY_SIGNALS.filter((fn) => fn(text)).length;
+  return signals >= 3;
+}
 
 const COLLAPSED_CLASS = "deslop-collapsed";
 const BADGE_CLASS = "deslop-badge";
@@ -81,23 +196,31 @@ function shouldFilter(post) {
   const content = post.innerText.toLowerCase();
 
   if (hasAnyPattern(content, SPONSORED_PATTERNS)) {
-    return true;
+    return "Sponsored";
   }
 
   if (hasAnyPattern(content, RECOMMENDED_PATTERNS)) {
-    return true;
+    return "Recommended";
   }
 
   const keywordBlacklist = normalizeList(settings.keywordBlacklist);
   for (const keyword of keywordBlacklist) {
     if (content.includes(keyword)) {
-      return true;
+      return "Keyword match";
     }
   }
 
   const mutedAuthors = normalizeList(settings.mutedAuthors);
   const author = parseAuthor(post);
-  return Boolean(author) && mutedAuthors.has(author);
+  if (Boolean(author) && mutedAuthors.has(author)) {
+    return "Muted author";
+  }
+
+  if (settings.filterAiSlop && looksLikeAiSlop(post.innerText)) {
+    return "AI Slop";
+  }
+
+  return null;
 }
 
 function resetPost(post) {
@@ -114,7 +237,8 @@ function resetPost(post) {
 function filterPost(post) {
   resetPost(post);
 
-  if (!shouldFilter(post)) {
+  const reason = shouldFilter(post);
+  if (!reason) {
     return;
   }
 
@@ -122,7 +246,7 @@ function filterPost(post) {
     post.classList.add(COLLAPSED_CLASS);
     const badge = document.createElement("div");
     badge.className = BADGE_CLASS;
-    badge.textContent = "Filtered by DeSlop";
+    badge.textContent = `${reason} – DeSlop`;
     post.prepend(badge);
     return;
   }
@@ -151,7 +275,8 @@ async function loadSettings() {
     mutedAuthors: Array.isArray(stored.mutedAuthors)
       ? stored.mutedAuthors
       : DEFAULT_SETTINGS.mutedAuthors,
-    collapseInsteadOfHide: Boolean(stored.collapseInsteadOfHide)
+    collapseInsteadOfHide: Boolean(stored.collapseInsteadOfHide),
+    filterAiSlop: stored.filterAiSlop !== false
   };
 }
 
@@ -179,6 +304,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
   if (changes.collapseInsteadOfHide) {
     settings.collapseInsteadOfHide = Boolean(changes.collapseInsteadOfHide.newValue);
+  }
+
+  if (changes.filterAiSlop) {
+    settings.filterAiSlop = changes.filterAiSlop.newValue !== false;
   }
 
   scheduleApplyFilters();
